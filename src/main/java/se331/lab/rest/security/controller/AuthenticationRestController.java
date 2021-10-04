@@ -12,10 +12,16 @@ import org.springframework.security.core.AuthenticationException;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.security.core.userdetails.UserDetailsService;
+import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
+import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.web.bind.annotation.*;
+import se331.lab.rest.repository.OrganizerRepository;
 import se331.lab.rest.security.JwtTokenUtil;
+import se331.lab.rest.security.entity.Authority;
+import se331.lab.rest.security.entity.AuthorityName;
 import se331.lab.rest.security.entity.JwtUser;
 import se331.lab.rest.security.entity.User;
+import se331.lab.rest.security.repository.AuthorityRepository;
 import se331.lab.rest.security.repository.UserRepository;
 import se331.lab.rest.util.LabMapper;
 
@@ -41,6 +47,12 @@ public class AuthenticationRestController {
 
     @Autowired
     UserRepository userRepository;
+
+    @Autowired
+    AuthorityRepository authorityRepository;
+
+    @Autowired
+    OrganizerRepository organizerRepository;
 
 
     @PostMapping("${jwt.route.authentication.path}")
@@ -69,7 +81,6 @@ public class AuthenticationRestController {
         return ResponseEntity.ok(result);
     }
 
-
     @GetMapping(value = "${jwt.route.authentication.refresh}")
     public ResponseEntity<?> refreshAndGetAuthenticationToken(HttpServletRequest request) {
         String token = request.getHeader(tokenHeader);
@@ -82,6 +93,24 @@ public class AuthenticationRestController {
         } else {
             return ResponseEntity.badRequest().body(null);
         }
+    }
+
+    @PostMapping("${jwt.route.authentication.path}/account")
+    public ResponseEntity<?> addUser(@RequestBody User user)throws AuthenticationException {
+        Authority authUser = Authority.builder().name(AuthorityName.ROLE_USER).build();
+        PasswordEncoder encoder = new BCryptPasswordEncoder();
+        authorityRepository.save(authUser);
+        user.setEnabled(true);
+        user.setPassword(encoder.encode(user.getPassword()));
+        user.getAuthorities().add(authUser);
+        user.setOrganizer( organizerRepository.getById(2L));
+
+        Map result = new HashMap();
+        User output = userRepository.save(user);
+        result.put("user",LabMapper.INSTANCE.getUserDTO(output));
+        result.put("Organizer",  LabMapper.INSTANCE.getOrganizerAuthDTO(user.getOrganizer()));
+
+        return ResponseEntity.ok(result);
     }
 
 
